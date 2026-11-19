@@ -9,7 +9,7 @@ Python 3.11. The results were produced with the exact versions in `requirements.
 (PyTorch MPS backend, fp32). CUDA and CPU also work.
 
 ```bash
-git clone <this repo> && cd topk-vs-topp-moe
+git clone https://github.com/Rahul-Samedavar/MoE-topk-vs-topp.git && cd MoE-topk-vs-topp
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
