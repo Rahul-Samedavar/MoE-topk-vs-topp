@@ -72,48 +72,80 @@ def save(fig, name):
     print("wrote", OUT / name)
 
 
-# ---------------------------------------------------------------- fig 1: loss vs experts per token
+# ---------------------------------------------------------------- figs 1 and 6: loss vs inference / training compute
 LABEL_OFFSETS = {"P50": (8, -3), "P50-noent": (-58, 2), "P50-renorm": (-30, -16), "P60": (-10, -16),
-                 "K2-ent": (8, 2), "K2-renorm": (8, -8), "K2": (8, 4)}
-def fig_frontier():
+                 "K2-ent": (8, 2), "K2-renorm": (8, -8), "K2": (8, 4), "L-P60": (-10, -16), "L-P65": (-40, -14),
+                 "L-K2-renorm": (8, 6), "L-P70": (6, -13)}
+FLOPS_LABEL_OFFSETS = {"P50": (-12, -17), "K2-ent": (10, 0), "L-K2-renorm": (8, -12), "L-P70": (6, 6)}
+PANELS = [
+    ("10M tokens", ["K1", "K2", "K3"], ["P30", "P50", "P60", "P70"],
+     ["K2-ent", "P50-noent", "K2-renorm", "P50-renorm"], "DENSE"),
+    ("30M tokens", ["L-K1", "L-K2", "L-K3"], ["L-P60", "L-P65", "L-P70"], ["L-K2-renorm"], "L-DENSE"),
+]
+
+
+def topk_curve(Es, Ls, n=200):
+    """Top-k loss between k = 1 and 3, linear in log E: the interpolation used for the compute-matched gaps."""
+    grid = np.exp(np.linspace(np.log(Es[0]), np.log(Es[-1]), n))
+    return grid, np.interp(np.log(grid), np.log(Es), Ls)
+
+
+def loss_vs_compute(training, fname):
+    """training=False: x = experts per token at the end of training (inference compute).
+    training=True: x = total effective training FLOPs, accumulated from each step's measured experts per token."""
+    xval = (lambda r: r["summary"]["cum_flops_effective"] / 1e15) if training else mean_E
+    offsets = {**LABEL_OFFSETS, **FLOPS_LABEL_OFFSETS} if training else LABEL_OFFSETS
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
-    panels = [
-        ("10M tokens", ["K1", "K2", "K3"], ["P30", "P50", "P60", "P70"],
-         ["K2-ent", "P50-noent", "K2-renorm", "P50-renorm"], "DENSE"),
-        ("30M tokens", ["L-K2"], ["L-P60", "L-P65", "L-P70"], [], "L-DENSE"),
-    ]
-    for ax, (title, ks, ps, ctrls, dense) in zip(axes, panels):
-        d = [r["summary"]["val_loss"] for r in finished(dense)]
-        ax.axhspan(min(d), max(d), color=INK2, alpha=0.10, lw=0)
-        ax.axhline(np.mean(d), color=INK2, ls="--", lw=1.2)
-        ax.text(0.01, np.mean(d), " dense (mean, seed range)", color=INK2, fontsize=8,
-                ha="left", va="bottom", transform=ax.get_yaxis_transform())
+    for ax, (title, ks, ps, ctrls, dense) in zip(axes, PANELS):
+        d = finished(dense)
+        dl = [r["summary"]["val_loss"] for r in d]
+        ax.axhspan(min(dl), max(dl), color=INK2, alpha=0.10, lw=0)
+        ax.axhline(np.mean(dl), color=INK2, ls="--", lw=1.2)
+        if training:
+            ax.scatter([np.mean([xval(r) for r in d])], [np.mean(dl)], marker="x", s=40, color=INK2, zorder=3)
+        ax.text(0.99, max(dl), "dense (mean, seed range) ", color=INK2, fontsize=8,
+                ha="right", va="bottom", transform=ax.get_yaxis_transform())
+        kE, kL, kX = [], [], []
         for group, color, marker in [(ks, BLUE, "o"), (ps, ORANGE, "o"), (ctrls, AQUA, "D")]:
-            xs, ys = [], []
             for exp in group:
                 runs = finished(exp)
-                ex = [mean_E(r) for r in runs]
+                if not runs:
+                    continue
+                ex = [xval(r) for r in runs]
                 ey = [r["summary"]["val_loss"] for r in runs]
                 ax.scatter(ex, ey, s=22, color=color, alpha=0.45, marker=marker, lw=0)
                 mx, my = np.mean(ex), np.mean(ey)
                 ax.scatter([mx], [my], s=70, color=color, marker=marker, edgecolor=SURF, lw=1.5, zorder=3)
-                ax.annotate(exp, (mx, my), xytext=LABEL_OFFSETS.get(exp, (5, 5)), textcoords="offset points",
+                ax.annotate(exp, (mx, my), xytext=offsets.get(exp, (5, 5)), textcoords="offset points",
                             fontsize=8, color=INK)
-                xs.append(mx); ys.append(my)
-            if group is ks and len(ks) > 1:
-                ax.plot(xs, ys, color=BLUE, lw=1.5, zorder=1)
+                if group is ks:
+                    kE.append(np.mean([mean_E(r) for r in runs])); kL.append(my); kX.append(mx)
+        if len(kE) == 3:
+            gE, gL = topk_curve(kE, kL)
+            ax.plot(np.interp(gE, kE, kX), gL, color=BLUE, lw=1.5, zorder=1)  # x is affine in E for top-k
         ax.set_title(title, loc="left")
-        ax.set_xlabel("average active experts per token")
+        ax.set_xlabel("total training FLOPs (PFLOP, effective, forward + backward)" if training
+                      else "average active experts per token at the end of training")
         ax.set_ylabel("final validation loss (nats/token)")
     from matplotlib.lines import Line2D
-    handles = [Line2D([], [], color=BLUE, marker="o", lw=1.5, label="top-k (line: K1-K3 frontier)"),
+    handles = [Line2D([], [], color=BLUE, marker="o", lw=1.5, label="top-k (curve: k = 1-3, log-E interpolation)"),
                Line2D([], [], color=ORANGE, marker="o", lw=0, label="top-p"),
                Line2D([], [], color=AQUA, marker="D", lw=0, label="controls (entropy, gate norm)"),
                Line2D([], [], color=INK2, ls="--", lw=1.2, label="dense, same active params")]
     fig.legend(handles=handles, loc="lower center", ncol=4, bbox_to_anchor=(0.5, -0.06), fontsize=9)
-    fig.text(0.5, -0.11, "Large markers: seed mean. Small markers: individual seeds.", ha="center",
-             fontsize=8, color=INK2)
-    save(fig, "fig1_loss_vs_experts.png")
+    note = "Large markers: seed mean. Small markers: individual seeds."
+    if training:
+        note += " Training FLOPs accumulate each step's measured experts per token (3x forward FLOPs)."
+    fig.text(0.5, -0.11, note, ha="center", fontsize=8, color=INK2)
+    save(fig, fname)
+
+
+def fig_frontier():
+    loss_vs_compute(False, "fig1_loss_vs_experts.png")
+
+
+def fig_train_flops():
+    loss_vs_compute(True, "fig6_loss_vs_train_flops.png")
 
 
 # ---------------------------------------------------------------- fig 2: dense minus top-2 over training
@@ -217,3 +249,4 @@ if __name__ == "__main__":
     fig_E_drift()
     fig_layers()
     fig_entropy()
+    fig_train_flops()

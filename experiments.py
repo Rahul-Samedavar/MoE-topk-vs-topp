@@ -10,7 +10,8 @@ training budget:
     main-10m        10M     top-1/2/3, top-p 0.3/0.5/0.6/0.7, dense
     entropy-10m     10M     router entropy loss: added to top-2; removed from and varied for top-p 0.5
     gatenorm-10m    10M     renormalized gates, for top-2 and top-p 0.5
-    main-30m        30M     top-2, top-p 0.6/0.65/0.7, dense
+    main-30m        30M     top-1/2/3, top-p 0.6/0.65/0.7, dense
+    gatenorm-30m    30M     renormalized gates, for top-2
 
 Every setting not listed here is the default in moe.MoEConfig and train.TrainConfig.
 """
@@ -47,6 +48,7 @@ GROUPS: Dict[str, Group] = {g.name: g for g in [
     Group("entropy-10m", "10M", "entropy-loss ablations and entropy-weight sweep"),
     Group("gatenorm-10m", "10M", "renormalized-gate ablation"),
     Group("main-30m", "30M", "top-k, top-p and dense at 3x the training budget"),
+    Group("gatenorm-30m", "30M", "renormalized-gate ablation at 3x the training budget"),
 ]}
 
 
@@ -124,6 +126,10 @@ EXPS: List[Exp] = [
     Exp("L-P65", "main-30m", "top-p 0.65", _topp(0.65), (0, 1, 2)),
     Exp("L-P70", "main-30m", "top-p 0.7", _topp(0.7), (0,)),
     Exp("L-DENSE", "main-30m", "dense FFN, same active parameters as top-2", DENSE, (0, 1, 2)),
+    Exp("L-K1", "main-30m", "top-1", _topk(1), (0, 1)),
+    Exp("L-K3", "main-30m", "top-3", _topk(3), (0, 1)),
+    # ---- gatenorm-30m ----
+    Exp("L-K2-renorm", "gatenorm-30m", "top-2, renormalized gates", _topk(2, gate_norm="renorm"), (0, 1)),
 ]
 BY_ID: Dict[str, Exp] = {e.id: e for e in EXPS}
 
@@ -169,7 +175,7 @@ REFERENCE = {"topk": "K2", "topp": "P50", "dense": "DENSE"}
 ALLOWED_DIFF = {
     "lr-sweep": set(), "alpha-sweep": {"bal_coef"},
     "main-10m": {"k", "p"}, "entropy-10m": {"ent_coef"}, "gatenorm-10m": {"gate_norm"},
-    "main-30m": {"p"},
+    "main-30m": {"k", "p"}, "gatenorm-30m": {"gate_norm"},
 }
 
 

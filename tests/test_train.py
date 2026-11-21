@@ -225,10 +225,10 @@ def test_nan_guard():
 
 def test_cli_and_experiments():
     assert E.check_controls() == []
-    assert len(E.select()) == 73 and len(E.EXPS) == 39
+    assert len(E.select()) == 79 and len(E.EXPS) == 42
     counts = {g: len(E.select([g])) for g in E.GROUPS}
     assert counts == {"lr-sweep": 12, "alpha-sweep": 16, "main-10m": 19, "entropy-10m": 8, "gatenorm-10m": 5,
-                      "main-30m": 13}, counts
+                      "main-30m": 17, "gatenorm-30m": 2}, counts
     assert [s for _, s in E.select(only=["K2"], seeds=[5, 6])] == [5, 6]
     mo, to, dd = E.resolve("P50")
     assert mo["route_mode"] == "topp" and mo["ent_coef"] == 1e-4 and to == {"max_tokens": 10_000_000, "lr": 4e-3}

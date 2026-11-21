@@ -48,7 +48,8 @@ Every run is registered in `experiments.py` with its exact configuration and see
 | `main-10m` | 10M tokens | K1 (0-1), K2 (0-2), K3 (0-1), P30 (0-1), P50 (0-1), P60 (0-2), P70 (0-1), DENSE (0-2) |
 | `entropy-10m` | 10M tokens | K2-ent, P50-noent, P50-ent1e-3, P50-ent1e-2 (0-1 each) |
 | `gatenorm-10m` | 10M tokens | K2-renorm (0-2), P50-renorm (0-1) |
-| `main-30m` | 30M tokens | L-K2 (0-2), L-P60 (0-2), L-P65 (0-2), L-P70 (0), L-DENSE (0-2) |
+| `main-30m` | 30M tokens | L-K1 (0-1), L-K2 (0-2), L-K3 (0-1), L-P60 (0-2), L-P65 (0-2), L-P70 (0), L-DENSE (0-2) |
+| `gatenorm-30m` | 30M tokens | L-K2-renorm (0-1) |
 
 Naming: `K<k>` is top-k routing; `P<nn>` is top-p routing with p = 0.nn (at most 4 experts per token, router entropy
 loss weight 1e-4); `DENSE` replaces each MoE layer with one FFN with the same active parameters as top-2; `L-` marks
@@ -58,7 +59,7 @@ the 30M-token runs. `python run.py list` prints every configuration with a descr
 
 ```bash
 python run.py list                                   # all configurations, seeds, status, time estimate
-python run.py train --all                            # every registered run (73 runs)
+python run.py train --all                            # every registered run (79 runs)
 python run.py train --group main-10m                 # one or more groups
 python run.py train --only K2 P60                    # specific configurations, with their registered seeds
 python run.py train --only K2 --seeds 0              # specific seeds
@@ -76,7 +77,7 @@ command again. Runs execute one at a time; to use several devices, start several
 selections.
 
 Rough wall-clock times on an Apple-silicon laptop, one run at a time: 3M-token run 5-7 min, 10M-token MoE run about
-20 min (dense about 10), 30M-token MoE run about 1 h. All 73 runs take roughly 27 h.
+20 min (dense about 10), 30M-token MoE run about 1 h. All 79 runs take roughly 33 h.
 
 ### Single runs and your own configurations
 
@@ -124,11 +125,12 @@ files of each run.
 | `tuning_lr`, `tuning_alpha` | `analysis/tuning_report.py` | the two 3M-token sweeps |
 | `analyze_main`, `analyze_scale` | `analysis/analyze.py` | results tables, compute-matched gaps, inference-time sweep, health flags, figures, for 10M and 30M runs |
 | `summary_stats` | `analysis/summary_stats.py` | paired same-seed differences, seed spreads, learning curves, routing and load, training health |
+| `compute_matched` | `analysis/compute_matched.py` | gaps below the top-k curve at matched inference compute (final experts per token) and matched training compute (total training FLOPs), 10M and 30M |
 | `entropy_sweep` | `analysis/entropy_sweep.py` | the `entropy-10m` group |
 | `tokens_10m`, `tokens_30m` | `analysis/analyze_tokens.py` | token-level analysis of expert counts |
 | `probe_layers` | `analysis/probe_layers.py` | per-layer probes: token determinism, early training, final routing |
 | `checkpoint_probe` | `analysis/checkpoint_probe.py` | forward-only probes of the final checkpoints |
-| `figures` | `analysis/figures.py` | summary figures across groups |
+| `figures` | `analysis/figures.py` | summary figures across groups, including loss against experts per token (`fig1`) and against total training FLOPs (`fig6`) |
 
 To check that runs were trained with the registered configurations (for example, runs you trained, or ours if you
 downloaded them):

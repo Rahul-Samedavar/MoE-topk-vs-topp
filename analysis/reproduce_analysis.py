@@ -29,6 +29,8 @@ def steps(runs: str, out: str):
         ("analyze_scale", "analyze.py", ["--runs", runs, "--only", "scale", "--out", str(o / "analyze_scale")],
          "30M runs"),
         ("summary_stats", "summary_stats.py", ["--runs", runs], "all 10M and 30M runs"),
+        ("compute_matched", "compute_matched.py", ["--runs", runs],
+         "top-k curve gaps at matched inference and training compute"),
         ("entropy_sweep", "entropy_sweep.py", ["--runs", runs], "entropy-10m"),
         ("tokens_10m", "analyze_tokens.py", ["--runs", runs, "--topp", "P30", "P50", "P60", "P70", "P50-noent",
                                              "P50-renorm", "--topk", "K2", "--out", str(o / "tokens_10m")],

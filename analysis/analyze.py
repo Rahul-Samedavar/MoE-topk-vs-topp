@@ -392,12 +392,11 @@ def main():
         if not scale:
             print("no 30M-token runs (L-*) with eval records found in", a.runs); return 1
         print(f"##### 30M-token runs only: {', '.join(sorted(scale))} #####")
-        table(scale); sweep_table(scale); health(scale)
+        table(scale); gaps(scale); sweep_table(scale); health(scale)
         scale_compare(scale, runs, out)
         for f in (fig_frontier, fig_curves, fig_layers, fig_sweep, fig_health):
             f(scale, out)
         print(f"\nfigures written to {out}/: " + ", ".join(sorted(p.name for p in out.glob('*.png'))))
-        print("(no top-k frontier at this scale: there are no 30M K1/K3 runs, so the top-p vs top-k comparison is the direct one in the table above)")
         return 0
     table(runs); gaps(runs); sweep_table(runs)
     if scale and a.only != "main":

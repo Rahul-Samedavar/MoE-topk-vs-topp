@@ -21,12 +21,13 @@ def ev(rid, s): return jl(R / rid / f"seed{s}" / "eval.jsonl")
 def mt(rid, s): return jl(R / rid / f"seed{s}" / "metrics.jsonl")
 
 MAIN = ["K1", "K2", "K3", "P30", "P50", "P60", "P70", "K2-ent", "P50-noent", "DENSE", "K2-renorm", "P50-renorm"]
-L30 = ["L-K2", "L-P60", "L-P65", "L-P70", "L-DENSE"]
+L30 = ["L-K1", "L-K2", "L-K3", "L-P60", "L-P65", "L-P70", "L-DENSE", "L-K2-renorm"]
 
 print("=== 1. PAIRED SAME-SEED DIFFERENCES (A - B final val loss; negative = A better; same seed = same init seed and data order) ===")
 pairs = [("P60", "K2"), ("P70", "K2"), ("P50", "K2"), ("P30", "K2"), ("K3", "K2"), ("K1", "K2"), ("DENSE", "K2"),
          ("K2-ent", "K2"), ("P50-noent", "P50"), ("K2-renorm", "K2"), ("P50-renorm", "P50"), ("P60", "DENSE"), ("P70", "K3"),
-         ("L-P60", "L-K2"), ("L-P65", "L-K2"), ("L-P70", "L-K2"), ("L-DENSE", "L-K2"), ("L-P65", "L-P60"), ("L-P60", "L-DENSE"), ("L-P65", "L-DENSE")]
+         ("L-P60", "L-K2"), ("L-P65", "L-K2"), ("L-P70", "L-K2"), ("L-DENSE", "L-K2"), ("L-P65", "L-P60"), ("L-P60", "L-DENSE"), ("L-P65", "L-DENSE"),
+         ("L-K1", "L-K2"), ("L-K3", "L-K2"), ("L-K1", "L-DENSE"), ("L-K2-renorm", "L-K2"), ("L-P60", "L-K2-renorm"), ("L-P65", "L-K2-renorm")]
 for a, b in pairs:
     common = sorted(set(seeds(a)) & set(seeds(b)))
     d = [S(a, s)["val_loss"] - S(b, s)["val_loss"] for s in common]
@@ -50,14 +51,7 @@ for rid in ["P30", "P50", "P60", "P70", "P50-noent", "P50-renorm", "K2-ent", "K2
         f = np.interp(x, kx, ky)
         print(f"  {rid}/s{s}: FLOPs {x/1e6:.3f}M experts {S(rid, s).get('avg_experts_mean') or float('nan'):.3f} loss {y:.4f} topk-frontier {f:.4f} gap(frontier-run) {f-y:+.4f}" + ("  [outside frontier range]" if x < kx[0] or x > kx[-1] else ""))
 print("top-k frontier slope K1->K2 per ln(experts):", (ky[1]-ky[0])/math.log(2), " K2->K3:", (ky[2]-ky[1])/math.log(1.5))
-print("\n  30M: ROUGH estimate only (assumes the 10M top-k slope in ln(experts) holds at 30M; no L-K1/L-K3 runs exist)")
-s12, s23 = (ky[1]-ky[0])/math.log(2), (ky[2]-ky[1])/math.log(1.5)
-k2_30 = np.mean([S("L-K2", s)["val_loss"] for s in seeds("L-K2")])
-for rid in ["L-P60", "L-P65", "L-P70"]:
-    for s in seeds(rid):
-        e = S(rid, s)["avg_experts_mean"]; y = S(rid, s)["val_loss"]
-        f = k2_30 + (s12 if e < 2 else s23) * math.log(e / 2)
-        print(f"  {rid}/s{s}: experts {e:.3f} loss {y:.4f} est. top-k at same experts {f:.4f} gap {f-y:+.4f}")
+print("  (30M runs, and matched training compute at both budgets: see analysis/compute_matched.py)")
 
 print("\n=== 4. LEARNING CURVES: val loss (seed mean) at eval steps; intermediate evals on first 262,144 val tokens, final on full 1,025,280 ===")
 def curve(rid):
