@@ -1,5 +1,9 @@
 # Top-k vs top-p expert routing in a small MoE language model
 
+> **Research paper:** [Read the paper (PDF)](paper/top-k-vs-top-p-moe.pdf)
+>
+> The manuscript is included in this repository at `paper/top-k-vs-top-p-moe.pdf`. Start here for the research paper; the rest of this README documents the code and steps needed to reproduce the experiments.
+
 Code to train and analyse the models in the paper: a 4-layer mixture-of-experts transformer (8 SwiGLU experts per
 layer) trained on TinyStories with top-k or top-p expert routing, plus a dense baseline.
 
@@ -24,10 +28,10 @@ python prepare_data.py
 
 This downloads TinyStories (`roneneldan/TinyStories` at a pinned revision, about 2 GB), then writes:
 
-| Folder | Training tokens | Used by |
-| --- | --- | --- |
-| `data/tinystories/` | 10M | the 3M- and 10M-token runs |
-| `data/tinystories30m/` | 30M | the 30M-token runs |
+| Folder                   | Training tokens | Used by                    |
+| ------------------------ | --------------- | -------------------------- |
+| `data/tinystories/`    | 10M             | the 3M- and 10M-token runs |
+| `data/tinystories30m/` | 30M             | the 30M-token runs         |
 
 Both use the shipped tokenizer (`tokenizer/tinystories_bpe_4096/tokenizer.json`, a 4,096-token byte-level BPE) and
 share one validation file. The script ends by checking SHA-256 checksums against the files our runs were trained on,
@@ -41,15 +45,15 @@ Every run is registered in `experiments.py` with its exact configuration and see
 (e.g. `K2`, `P60`, `L-P65`); each configuration is trained with one or more seeds, and each (ID, seed) pair is one
 *run*. Configurations are organised in groups:
 
-| Group | Budget | Configurations (seeds) |
-| --- | --- | --- |
-| `lr-sweep` | 3M tokens | `LR-K2-*`, `LR-P50-*`, `LR-DENSE-*` for peak LR 1e-3, 2e-3, 4e-3, 8e-3 (seed 0) |
-| `alpha-sweep` | 3M tokens | `AL-K2-*`, `AL-P50-*` for load-balance weight 1e-3, 1e-2, 1e-1, 3e-1 (seeds 0-1) |
-| `main-10m` | 10M tokens | K1 (0-1), K2 (0-2), K3 (0-1), P30 (0-1), P50 (0-1), P60 (0-2), P70 (0-1), DENSE (0-2) |
-| `entropy-10m` | 10M tokens | K2-ent, P50-noent, P50-ent1e-3, P50-ent1e-2 (0-1 each) |
-| `gatenorm-10m` | 10M tokens | K2-renorm (0-2), P50-renorm (0-1) |
-| `main-30m` | 30M tokens | L-K1 (0-1), L-K2 (0-2), L-K3 (0-1), L-P60 (0-2), L-P65 (0-2), L-P70 (0), L-DENSE (0-2) |
-| `gatenorm-30m` | 30M tokens | L-K2-renorm (0-1) |
+| Group            | Budget     | Configurations (seeds)                                                                 |
+| ---------------- | ---------- | -------------------------------------------------------------------------------------- |
+| `lr-sweep`     | 3M tokens  | `LR-K2-*`, `LR-P50-*`, `LR-DENSE-*` for peak LR 1e-3, 2e-3, 4e-3, 8e-3 (seed 0)  |
+| `alpha-sweep`  | 3M tokens  | `AL-K2-*`, `AL-P50-*` for load-balance weight 1e-3, 1e-2, 1e-1, 3e-1 (seeds 0-1)   |
+| `main-10m`     | 10M tokens | K1 (0-1), K2 (0-2), K3 (0-1), P30 (0-1), P50 (0-1), P60 (0-2), P70 (0-1), DENSE (0-2)  |
+| `entropy-10m`  | 10M tokens | K2-ent, P50-noent, P50-ent1e-3, P50-ent1e-2 (0-1 each)                                 |
+| `gatenorm-10m` | 10M tokens | K2-renorm (0-2), P50-renorm (0-1)                                                      |
+| `main-30m`     | 30M tokens | L-K1 (0-1), L-K2 (0-2), L-K3 (0-1), L-P60 (0-2), L-P65 (0-2), L-P70 (0), L-DENSE (0-2) |
+| `gatenorm-30m` | 30M tokens | L-K2-renorm (0-1)                                                                      |
 
 Naming: `K<k>` is top-k routing; `P<nn>` is top-p routing with p = 0.nn (at most 4 experts per token, router entropy
 loss weight 1e-4); `DENSE` replaces each MoE layer with one FFN with the same active parameters as top-2; `L-` marks
@@ -98,16 +102,16 @@ model only in the settings its group is meant to vary.
 
 ### What a run writes
 
-| File | Contents |
-| --- | --- |
-| `config.json` | resolved model and training config, data info, environment, command line, `config_hash` |
-| `metrics.jsonl` | training log every 10 steps (losses, gradient norms, per-layer routing statistics) |
-| `eval.jsonl` | validation every 100 steps on a fixed 262k-token subset; the final one on the full validation set |
-| `sweep_eval.json` | the trained model re-evaluated with other top-p thresholds and top-k values |
-| `routing_dump.npz` | per-token loss and per-layer expert masks on the first 131k validation tokens |
-| `summary.json` | final results; written last, so its presence means the run is complete |
-| `train.log`, `events.jsonl` | console log; start, resume, interrupt and finish events |
-| `ckpt/final.pt` | final weights (`ckpt/last.pt` holds the resume state while a run is in progress) |
+| File                            | Contents                                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `config.json`                 | resolved model and training config, data info, environment, command line, `config_hash`         |
+| `metrics.jsonl`               | training log every 10 steps (losses, gradient norms, per-layer routing statistics)                |
+| `eval.jsonl`                  | validation every 100 steps on a fixed 262k-token subset; the final one on the full validation set |
+| `sweep_eval.json`             | the trained model re-evaluated with other top-p thresholds and top-k values                       |
+| `routing_dump.npz`            | per-token loss and per-layer expert masks on the first 131k validation tokens                     |
+| `summary.json`                | final results; written last, so its presence means the run is complete                            |
+| `train.log`, `events.jsonl` | console log; start, resume, interrupt and finish events                                           |
+| `ckpt/final.pt`               | final weights (`ckpt/last.pt` holds the resume state while a run is in progress)                |
 
 ## Reproducing our results
 
@@ -120,17 +124,17 @@ Step 3 runs every analysis script on the finished runs in `runs/` and writes the
 runs stored elsewhere. Every step except `checkpoint_probe`, which loads `ckpt/final.pt`, needs only the small log
 files of each run.
 
-| Step | Script | Covers |
-| --- | --- | --- |
-| `tuning_lr`, `tuning_alpha` | `analysis/tuning_report.py` | the two 3M-token sweeps |
-| `analyze_main`, `analyze_scale` | `analysis/analyze.py` | results tables, compute-matched gaps, inference-time sweep, health flags, figures, for 10M and 30M runs |
-| `summary_stats` | `analysis/summary_stats.py` | paired same-seed differences, seed spreads, learning curves, routing and load, training health |
-| `compute_matched` | `analysis/compute_matched.py` | gaps below the top-k curve at matched inference compute (final experts per token) and matched training compute (total training FLOPs), 10M and 30M |
-| `entropy_sweep` | `analysis/entropy_sweep.py` | the `entropy-10m` group |
-| `tokens_10m`, `tokens_30m` | `analysis/analyze_tokens.py` | token-level analysis of expert counts |
-| `probe_layers` | `analysis/probe_layers.py` | per-layer probes: token determinism, early training, final routing |
-| `checkpoint_probe` | `analysis/checkpoint_probe.py` | forward-only probes of the final checkpoints |
-| `figures` | `analysis/figures.py` | summary figures across groups, including loss against experts per token (`fig1`) and against total training FLOPs (`fig6`) |
+| Step                                | Script                           | Covers                                                                                                                                             |
+| ----------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tuning_lr`, `tuning_alpha`     | `analysis/tuning_report.py`    | the two 3M-token sweeps                                                                                                                            |
+| `analyze_main`, `analyze_scale` | `analysis/analyze.py`          | results tables, compute-matched gaps, inference-time sweep, health flags, figures, for 10M and 30M runs                                            |
+| `summary_stats`                   | `analysis/summary_stats.py`    | paired same-seed differences, seed spreads, learning curves, routing and load, training health                                                     |
+| `compute_matched`                 | `analysis/compute_matched.py`  | gaps below the top-k curve at matched inference compute (final experts per token) and matched training compute (total training FLOPs), 10M and 30M |
+| `entropy_sweep`                   | `analysis/entropy_sweep.py`    | the `entropy-10m` group                                                                                                                          |
+| `tokens_10m`, `tokens_30m`      | `analysis/analyze_tokens.py`   | token-level analysis of expert counts                                                                                                              |
+| `probe_layers`                    | `analysis/probe_layers.py`     | per-layer probes: token determinism, early training, final routing                                                                                 |
+| `checkpoint_probe`                | `analysis/checkpoint_probe.py` | forward-only probes of the final checkpoints                                                                                                       |
+| `figures`                         | `analysis/figures.py`          | summary figures across groups, including loss against experts per token (`fig1`) and against total training FLOPs (`fig6`)                     |
 
 To check that runs were trained with the registered configurations (for example, runs you trained, or ours if you
 downloaded them):
@@ -170,6 +174,6 @@ run.py               master runner: list, train, verify
 prepare_data.py      download and tokenize TinyStories
 tokenizer/           the BPE tokenizer
 analysis/            analysis scripts; reproduce_analysis.py runs them all
+paper/               research manuscript (PDF)
 tests/               tests
 ```
-# MoE-topk-vs-topp
